@@ -1,0 +1,10 @@
+# storage/originals/.htaccess
+#
+# Цей файл — додатковий запобіжник. У правильно налаштованому WAMP/Apache
+# DocumentRoot має дивитись на photogallery/public/, тому до storage/
+# браузер фізично не дотягнеться.
+#
+# Але якщо хтось випадково налаштує DocumentRoot на корінь проєкту, ЦЕЙ
+# .htaccess все одно нікому нічого не дасть скачати: відмова всім.
+
+Require all denied

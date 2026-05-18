@@ -1,0 +1,37 @@
+# public/.htaccess
+#
+# 1) Включаємо mod_rewrite (на WAMP воно увімкнене за замовчуванням,
+#    якщо ні — у tray-меню WAMP: Apache → Apache modules → rewrite_module).
+# 2) Усі неіснуючі файли/папки перенаправляємо в index.php
+#    Тобто /gallery, /photo/5, /admin/photos/store — усе йде в index.php.
+# 3) Фізичні файли (CSS, JS, картинки) Apache віддає сам, без PHP.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Якщо проєкт у підпапці (напр. /photogallery/public), розкоментуй:
+    # RewriteBase /photogallery/public/
+
+    # Не чіпати реально існуючі файли і папки
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Усе інше → index.php
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Заборонити перегляд директорій ("Index of /...")
+Options -Indexes
+
+# Захист від доступу до прихованих файлів типу .git, .env
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Безпечні дефолтні заголовки
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "no-referrer-when-downgrade"
+</IfModule>

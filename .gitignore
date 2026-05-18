@@ -1,0 +1,21 @@
+# Локальні налаштування (НЕ комітимо БД-паролі)
+/config/config.local.php
+
+# Завантажені користувацькі файли (не комітимо реальні фото)
+/public/uploads/large/*
+!/public/uploads/large/.gitkeep
+/public/uploads/thumbs/*
+!/public/uploads/thumbs/.gitkeep
+/storage/originals/*
+!/storage/originals/.gitkeep
+!/storage/originals/.htaccess
+
+# Логи / тимчасові файли
+/storage/logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
