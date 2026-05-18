@@ -12,9 +12,15 @@
 
 use App\Core\Router;
 use App\Controllers\HomeController;
+use App\Controllers\DbCheckController;
 
 return function (Router $router): void {
     // Перевірочний маршрут.
     // Запит до '/' має відкрити "Привіт, MVC" від HomeController.
     $router->get('/', [HomeController::class, 'index']);
+
+    // Діагностика БД. Активний лише коли config debug=true.
+    // На Етапі 4 додамо: /gallery, /albums, /album/{id}, /photo/{id},
+    //                    /photo/download/{id}, /login, /admin/...
+    $router->get('/db-check', [DbCheckController::class, 'index']);
 };

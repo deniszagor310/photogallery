@@ -20,6 +20,26 @@ define('BASE_PATH', dirname(__DIR__));
 
 // 2) Конфіг + хелпери
 $config = require BASE_PATH . '/config/config.php';
+
+// Локальний override (необов'язковий, не в гіті, у .gitignore).
+// Зручно для розробника тримати свої БД-паролі окремо від загальних дефолтів.
+$localConfigPath = BASE_PATH . '/config/config.local.php';
+if (is_file($localConfigPath)) {
+    $local = require $localConfigPath;
+    if (is_array($local)) {
+        // Рекурсивне злиття: 'db' секція з local замінює відповідні поля.
+        $merge = static function (array $base, array $override) use (&$merge): array {
+            foreach ($override as $k => $v) {
+                $base[$k] = (is_array($v) && isset($base[$k]) && is_array($base[$k]))
+                    ? $merge($base[$k], $v)
+                    : $v;
+            }
+            return $base;
+        };
+        $config = $merge($config, $local);
+    }
+}
+
 require BASE_PATH . '/app/Helpers/helpers.php';
 
 // Підставляємо в конфіг абсолютні шляхи до папок (зручно потім).
@@ -65,16 +85,26 @@ session_set_cookie_params([
 ]);
 session_start();
 
-// 6) Підключення до БД. Поки що БД може ще не існувати —
-//    ми обернемо у try/catch, щоб демо-сторінка все одно відкривалась.
-//    Етап 3 зробить це обов'язковим.
+// 6) Підключення до БД. Обов'язкове.
+//    Якщо MySQL не запущений або БД не створено — показуємо акуратну
+//    сторінку з підказкою, як це виправити (а не білий екран зі стек-трейсом).
 try {
     \App\Core\Database::init($config['db']);
 } catch (\Throwable $e) {
-    if (!empty($config['debug'])) {
-        // На етапі розробки бачимо, що саме сталось.
-        // На Етапі 3 додамо коректний "MySQL ще не запущений" екран.
-    }
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    $msg = !empty($config['debug']) ? $e->getMessage() : 'Database is unavailable';
+    echo "<!doctype html><meta charset='utf-8'><title>DB error</title>";
+    echo "<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;line-height:1.5}";
+    echo "code{background:#eef;padding:2px 5px;border-radius:3px}.fail{color:#b00020}</style>";
+    echo "<h1 class='fail'>Не вдалось підключитись до бази даних</h1>";
+    echo "<p>" . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . "</p>";
+    echo "<ol>";
+    echo "<li>Запусти MySQL у WAMP (іконка має стати зеленою).</li>";
+    echo "<li>Перевір налаштування у <code>config/config.php → db</code>.</li>";
+    echo "<li>Виконай <code>database/schema.sql</code> у phpMyAdmin.</li>";
+    echo "</ol>";
+    exit;
 }
 
 // 7) Роутинг

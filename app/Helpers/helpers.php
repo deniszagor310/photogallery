@@ -23,7 +23,7 @@ if (!function_exists('e')) {
 
 if (!function_exists('config')) {
     /**
-     * Доступ до значень із config/config.php.
+     * Доступ до значень із config/config.php (з накладенням config.local.php).
      * Точково: config('db.host'), config('uploads.max_size').
      */
     function config(string $key, mixed $default = null): mixed
@@ -31,6 +31,21 @@ if (!function_exists('config')) {
         static $config = null;
         if ($config === null) {
             $config = require BASE_PATH . '/config/config.php';
+            $local = BASE_PATH . '/config/config.local.php';
+            if (is_file($local)) {
+                $override = require $local;
+                if (is_array($override)) {
+                    $merge = static function (array $base, array $ov) use (&$merge): array {
+                        foreach ($ov as $k => $v) {
+                            $base[$k] = (is_array($v) && isset($base[$k]) && is_array($base[$k]))
+                                ? $merge($base[$k], $v)
+                                : $v;
+                        }
+                        return $base;
+                    };
+                    $config = $merge($config, $override);
+                }
+            }
         }
         $parts = explode('.', $key);
         $value = $config;
