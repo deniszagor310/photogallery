@@ -436,3 +436,93 @@ a:hover { color: var(--fg-strong); }
     .filter-search { min-width: 100%; }
     .photo-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 }
+
+/* ---------- Auth (login form) ---------- */
+.auth {
+    display: flex;
+    justify-content: center;
+    padding: 60px 20px;
+}
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px 28px 28px;
+    box-shadow: var(--shadow);
+}
+.auth-title {
+    margin: 0 0 6px;
+    font-size: 24px;
+}
+.auth-hint {
+    margin: 0 0 20px;
+    color: var(--fg-muted);
+    font-size: 14px;
+}
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.form-label {
+    font-size: 13px;
+    color: var(--fg-muted);
+}
+.form-row input[type="text"],
+.form-row input[type="password"],
+.form-row input[type="email"],
+.form-row input[type="search"],
+.form-row textarea,
+.form-row select {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color .15s, box-shadow .15s;
+}
+.form-row input:focus,
+.form-row textarea:focus,
+.form-row select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.btn-block { width: 100%; }
+
+/* ---------- Nav: logged-in state ---------- */
+.nav-user {
+    color: var(--fg);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+}
+.nav-logout-form { margin: 0; }
+.nav-logout {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    transition: color .15s, border-color .15s;
+}
+.nav-logout:hover {
+    color: var(--fg);
+    border-color: var(--fg-muted);
+}

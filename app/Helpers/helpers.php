@@ -129,3 +129,50 @@ if (!function_exists('flash')) {
         return $value;
     }
 }
+
+if (!function_exists('flash_set')) {
+    /**
+     * Записати флеш-повідомлення (читається наступним запитом через flash()).
+     * Передбачено лише 2 ключі: 'success' і 'error' — layout вміє їх показувати.
+     */
+    function flash_set(string $key, string $value): void
+    {
+        $_SESSION['_flash'][$key] = $value;
+    }
+}
+
+if (!function_exists('auth')) {
+    /**
+     * Сінглтон сервісу автентифікації.
+     * У шаблонах: auth()->check(), auth()->user()['username'].
+     */
+    function auth(): \App\Services\Auth
+    {
+        static $instance = null;
+        if ($instance === null) {
+            $instance = new \App\Services\Auth();
+        }
+        return $instance;
+    }
+}
+
+if (!function_exists('csrf_token')) {
+    /**
+     * Згенерувати або повернути CSRF-токен поточної сесії.
+     */
+    function csrf_token(): string
+    {
+        return \App\Services\Csrf::token();
+    }
+}
+
+if (!function_exists('csrf_input')) {
+    /**
+     * Готовий <input type="hidden" name="_csrf" value="…"> для форм.
+     */
+    function csrf_input(): string
+    {
+        return '<input type="hidden" name="_csrf" value="'
+            . e(csrf_token()) . '">';
+    }
+}

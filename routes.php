@@ -15,6 +15,7 @@ use App\Controllers\HomeController;
 use App\Controllers\GalleryController;
 use App\Controllers\AlbumController;
 use App\Controllers\PhotoController;
+use App\Controllers\AuthController;
 use App\Controllers\DbCheckController;
 
 return function (Router $router): void {
@@ -25,8 +26,13 @@ return function (Router $router): void {
     $router->get('/album/{id}',    [AlbumController::class,   'show']);
     $router->get('/photo/{id}',          [PhotoController::class, 'show']);
     $router->get('/photo/download/{id}', [PhotoController::class, 'download']);
-    // /login, /logout — додамо на Етапі 6
-    // /admin/...      — додамо на Етапі 7
+
+    // ---- Авторизація ----
+    $router->get('/login',  [AuthController::class, 'loginForm']);
+    $router->post('/login', [AuthController::class, 'login']);
+    // logout — лише POST + CSRF, щоб ніхто не зміг повісити <img src="/logout">
+    $router->post('/logout', [AuthController::class, 'logout']);
+    // /admin/... — додамо на Етапі 7
 
     // ---- Діагностика (тільки в debug=true) ----
     $router->get('/db-check',      [DbCheckController::class, 'index']);

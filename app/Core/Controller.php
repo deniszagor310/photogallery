@@ -71,4 +71,30 @@ abstract class Controller
         }
         exit;
     }
+
+    /**
+     * Поточний користувач має бути залогінений.
+     * Якщо ні — кладемо flash і редіректимо на /login.
+     * Викликається на першому рядку кожного admin-екшна.
+     */
+    protected function requireAuth(): void
+    {
+        if (!auth()->check()) {
+            flash_set('error', 'Спершу увійди як адміністратор.');
+            $this->redirect(url('/login'));
+        }
+    }
+
+    /**
+     * Перевірка CSRF-токена з $_POST['_csrf'].
+     * Викликається на кожному POST-екшні, який змінює стан.
+     * При помилці — HTTP 419 (де-факто-стандарт «токен прострочений»).
+     */
+    protected function requireCsrf(): void
+    {
+        $token = (string)($_POST['_csrf'] ?? '');
+        if (!\App\Services\Csrf::check($token)) {
+            $this->abort(419, 'Невалідний або прострочений CSRF-токен. Оновіть сторінку і спробуйте ще раз.');
+        }
+    }
 }

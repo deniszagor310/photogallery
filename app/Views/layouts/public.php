@@ -30,7 +30,19 @@
             <a href="<?= e(url('/')) ?>">Головна</a>
             <a href="<?= e(url('/gallery')) ?>">Галерея</a>
             <a href="<?= e(url('/albums')) ?>">Альбоми</a>
-            <a href="<?= e(url('/login')) ?>" class="nav-login">Вхід</a>
+
+            <?php if (auth()->check()): ?>
+                <?php $currentUser = auth()->user(); ?>
+                <span class="nav-user">
+                    <?= e($currentUser['username'] ?? 'admin') ?>
+                </span>
+                <form action="<?= e(url('/logout')) ?>" method="post" class="nav-logout-form">
+                    <?= csrf_input() ?>
+                    <button type="submit" class="nav-logout">Вийти</button>
+                </form>
+            <?php else: ?>
+                <a href="<?= e(url('/login')) ?>" class="nav-login">Вхід</a>
+            <?php endif; ?>
         </nav>
     </div>
 </header>
