@@ -15,6 +15,18 @@
 
 declare(strict_types=1);
 
+// 0) PHP-CLI built-in server: коли URL вказує на реальний файл у public/ —
+//    віддаємо його напряму, не запускаючи весь bootstrap. Apache це робить
+//    через .htaccess (RewriteCond ... -f), а тут — програмно.
+//    (для тестування `php -S 127.0.0.1:8080 -t public public/index.php`).
+if (PHP_SAPI === 'cli-server') {
+    $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
+    $file = __DIR__ . $uri;
+    if ($uri !== '/' && is_file($file)) {
+        return false;
+    }
+}
+
 // 1) Корінь проєкту — батьківська папка для public/
 define('BASE_PATH', dirname(__DIR__));
 

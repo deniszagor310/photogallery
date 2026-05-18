@@ -12,15 +12,22 @@
 
 use App\Core\Router;
 use App\Controllers\HomeController;
+use App\Controllers\GalleryController;
+use App\Controllers\AlbumController;
+use App\Controllers\PhotoController;
 use App\Controllers\DbCheckController;
 
 return function (Router $router): void {
-    // Перевірочний маршрут.
-    // Запит до '/' має відкрити "Привіт, MVC" від HomeController.
-    $router->get('/', [HomeController::class, 'index']);
+    // ---- Публічна частина ----
+    $router->get('/',              [HomeController::class,    'index']);
+    $router->get('/gallery',       [GalleryController::class, 'index']);
+    $router->get('/albums',        [AlbumController::class,   'index']);
+    $router->get('/album/{id}',    [AlbumController::class,   'show']);
+    $router->get('/photo/{id}',    [PhotoController::class,   'show']);
+    // /photo/download/{id} — додамо на Етапі 5
+    // /login, /logout      — додамо на Етапі 6
+    // /admin/...           — додамо на Етапі 7
 
-    // Діагностика БД. Активний лише коли config debug=true.
-    // На Етапі 4 додамо: /gallery, /albums, /album/{id}, /photo/{id},
-    //                    /photo/download/{id}, /login, /admin/...
-    $router->get('/db-check', [DbCheckController::class, 'index']);
+    // ---- Діагностика (тільки в debug=true) ----
+    $router->get('/db-check',      [DbCheckController::class, 'index']);
 };
