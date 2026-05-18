@@ -191,4 +191,77 @@ final class Photo extends Model
         );
         $stmt->execute([$id]);
     }
+
+    /**
+     * Чи існує запис з таким slug (для перевірки унікальності перед UPDATE).
+     */
+    public function slugExists(string $slug, ?int $exceptId = null): bool
+    {
+        if ($exceptId === null) {
+            $stmt = $this->pdo->prepare('SELECT 1 FROM photos WHERE slug = ? LIMIT 1');
+            $stmt->execute([$slug]);
+        } else {
+            $stmt = $this->pdo->prepare('SELECT 1 FROM photos WHERE slug = ? AND id <> ? LIMIT 1');
+            $stmt->execute([$slug, $exceptId]);
+        }
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Оновити метадані фото. Шляхи / розміри / mime НЕ чіпаємо — їх
+     * виставляє Upload-логіка (Етап 8) і ImageService (Етап 9).
+     *
+     * @param array{
+     *   album_id:?int, title:string, slug:string, description:?string,
+     *   camera_model:?string, lens_model:?string,
+     *   iso:?int, aperture:?string, shutter_speed:?string, taken_at:?string
+     * } $data
+     */
+    public function update(int $id, array $data): void
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE photos
+                SET album_id      = :album_id,
+                    title         = :title,
+                    slug          = :slug,
+                    description   = :description,
+                    camera_model  = :camera_model,
+                    lens_model    = :lens_model,
+                    iso           = :iso,
+                    aperture      = :aperture,
+                    shutter_speed = :shutter_speed,
+                    taken_at      = :taken_at
+              WHERE id = :id'
+        );
+        $stmt->execute([
+            ':album_id'      => $data['album_id'] ?? null,
+            ':title'         => $data['title'],
+            ':slug'          => $data['slug'],
+            ':description'   => $data['description'] ?? null,
+            ':camera_model'  => $data['camera_model'] ?? null,
+            ':lens_model'    => $data['lens_model'] ?? null,
+            ':iso'           => $data['iso'] ?? null,
+            ':aperture'      => $data['aperture'] ?? null,
+            ':shutter_speed' => $data['shutter_speed'] ?? null,
+            ':taken_at'      => $data['taken_at'] ?? null,
+            ':id'            => $id,
+        ]);
+    }
+
+    /**
+     * Найновіші N — для адмін-дашборду.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function latest(int $limit = 5): array
+    {
+        $limit = max(1, min(50, $limit));
+        $sql = "SELECT p.id, p.title, p.slug, p.thumb_path, p.created_at, p.downloads_count,
+                       a.title AS album_title
+                  FROM photos p
+                  LEFT JOIN albums a ON a.id = p.album_id
+                 ORDER BY p.created_at DESC
+                 LIMIT {$limit}";
+        return $this->pdo->query($sql)->fetchAll();
+    }
 }
