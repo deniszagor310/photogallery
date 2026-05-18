@@ -1,11 +1,15 @@
 # Локальні налаштування (НЕ комітимо БД-паролі)
 /config/config.local.php
 
-# Завантажені користувацькі файли (не комітимо реальні фото)
+# Завантажені користувацькі файли (НЕ комітимо реальні фото).
+# Але .gitkeep і .htaccess у цих папках МАЮТЬ бути в git, щоб
+# структура каталогів і захист від виконання PHP існували одразу.
 /public/uploads/large/*
 !/public/uploads/large/.gitkeep
+!/public/uploads/large/.htaccess
 /public/uploads/thumbs/*
 !/public/uploads/thumbs/.gitkeep
+!/public/uploads/thumbs/.htaccess
 /storage/originals/*
 !/storage/originals/.gitkeep
 !/storage/originals/.htaccess

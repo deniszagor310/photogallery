@@ -30,13 +30,14 @@ return [
     // Найкраще — налаштувати VirtualHost з DocumentRoot=public/, тоді base_url = ''.
     'base_url' => '',
 
-    // -------- Шляхи (заповнюються у public/index.php) --------
-    // Тут лишаємо плейсхолдери — реальні значення підставимо
-    // у bootstrap-файлі, бо лише там знаємо BASE_PATH.
+    // -------- Шляхи --------
+    // Обчислюються від кореня проєкту (на 1 рівень вище від config/).
+    // Робимо це прямо тут, щоб і bootstrap (index.php), і хелпер config(…)
+    // отримували ОДНАКОВІ значення — бо обидва завантажують цей файл окремо.
     'paths' => [
-        'originals' => null, // storage/originals
-        'large'     => null, // public/uploads/large
-        'thumbs'    => null, // public/uploads/thumbs
+        'originals' => dirname(__DIR__) . '/storage/originals',
+        'large'     => dirname(__DIR__) . '/public/uploads/large',
+        'thumbs'    => dirname(__DIR__) . '/public/uploads/thumbs',
     ],
 
     // -------- Завантаження фото --------

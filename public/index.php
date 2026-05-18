@@ -54,7 +54,9 @@ if (is_file($localConfigPath)) {
 
 require BASE_PATH . '/app/Helpers/helpers.php';
 
-// Підставляємо в конфіг абсолютні шляхи до папок (зручно потім).
+// Шляхи у $config['paths'] вже обчислені у config/config.php від dirname(__DIR__).
+// Залишаємо тут страхувальний override на випадок, якщо колись зміниться
+// розташування файлу config.php.
 $config['paths']['originals'] = BASE_PATH . '/storage/originals';
 $config['paths']['large']     = BASE_PATH . '/public/uploads/large';
 $config['paths']['thumbs']    = BASE_PATH . '/public/uploads/thumbs';

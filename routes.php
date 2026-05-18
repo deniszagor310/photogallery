@@ -23,10 +23,10 @@ return function (Router $router): void {
     $router->get('/gallery',       [GalleryController::class, 'index']);
     $router->get('/albums',        [AlbumController::class,   'index']);
     $router->get('/album/{id}',    [AlbumController::class,   'show']);
-    $router->get('/photo/{id}',    [PhotoController::class,   'show']);
-    // /photo/download/{id} — додамо на Етапі 5
-    // /login, /logout      — додамо на Етапі 6
-    // /admin/...           — додамо на Етапі 7
+    $router->get('/photo/{id}',          [PhotoController::class, 'show']);
+    $router->get('/photo/download/{id}', [PhotoController::class, 'download']);
+    // /login, /logout — додамо на Етапі 6
+    // /admin/...      — додамо на Етапі 7
 
     // ---- Діагностика (тільки в debug=true) ----
     $router->get('/db-check',      [DbCheckController::class, 'index']);

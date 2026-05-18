@@ -1,0 +1,27 @@
+# public/uploads/.htaccess
+#
+# Усередині папки uploads (де лежать large/ та thumbs/) НІЩО, крім
+# зображень, виконуватись не повинно. Навіть якщо хтось підсуне
+# зловмисний .php-файл — Apache його не виконає.
+
+# Вимикаємо обробку PHP, CGI, серверних include тощо.
+<FilesMatch "\.(php|phar|phtml|phps|pl|py|cgi|jsp|asp|aspx|sh|exe|svg|svgz|html?|xml)$">
+    Require all denied
+</FilesMatch>
+
+# Дозволяємо лише поширені формати зображень.
+<FilesMatch "\.(jpe?g|png|webp|gif)$">
+    Require all granted
+</FilesMatch>
+
+# Заборонити прихований листинг файлів
+Options -Indexes -ExecCGI
+
+# На випадок старого Apache явно прибираємо обробники.
+RemoveHandler .php .phar .phtml .phps .cgi .pl .py
+RemoveType    .php .phar .phtml .phps .cgi .pl .py
+
+# Інлайн-показ, не атачмент (large/thumb мають відкриватись у <img>).
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>
