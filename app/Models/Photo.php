@@ -249,6 +249,46 @@ final class Photo extends Model
     }
 
     /**
+     * Замінити «файлові» поля одного фото після того, як Upload поклав
+     * новий оригінал і нові превʼю. Інші метадані (назва/опис/EXIF) не чіпаємо —
+     * їх контролер уже оновив окремим UPDATE у тій самій транзакції.
+     *
+     * @param array{
+     *   original_path:string, large_path:string, thumb_path:string,
+     *   original_filename:string, stored_filename:string,
+     *   original_size:int, mime_type:string, width:?int, height:?int
+     * } $data
+     */
+    public function replaceFileFields(int $id, array $data): void
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE photos
+                SET original_path     = :original_path,
+                    large_path        = :large_path,
+                    thumb_path        = :thumb_path,
+                    original_filename = :original_filename,
+                    stored_filename   = :stored_filename,
+                    original_size     = :original_size,
+                    mime_type         = :mime_type,
+                    width             = :width,
+                    height            = :height
+              WHERE id = :id'
+        );
+        $stmt->execute([
+            ':original_path'     => $data['original_path'],
+            ':large_path'        => $data['large_path'],
+            ':thumb_path'        => $data['thumb_path'],
+            ':original_filename' => $data['original_filename'],
+            ':stored_filename'   => $data['stored_filename'],
+            ':original_size'     => (int)$data['original_size'],
+            ':mime_type'         => $data['mime_type'],
+            ':width'             => $data['width'] ?? null,
+            ':height'            => $data['height'] ?? null,
+            ':id'                => $id,
+        ]);
+    }
+
+    /**
      * Створити новий запис фото. Викликається після того, як Upload-сервіс
      * уже зберіг фізичні файли на диск (storage/originals, public/uploads/...).
      *

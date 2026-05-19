@@ -30,8 +30,18 @@ if ($takenAt !== '') {
 
     <form class="admin-form admin-edit-photo-form"
           method="post"
+          enctype="multipart/form-data"
           action="<?= e(url('/admin/photos/' . (int)$photo['id'])) ?>">
         <?= csrf_input() ?>
+
+        <div class="form-row">
+            <label class="form-label">Замінити файл <span class="admin-muted">(JPEG, PNG або WebP — необовʼязково)</span></label>
+            <input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+            <small class="admin-muted">
+                Якщо вибрати новий файл — старий оригінал і обидва превʼю буде замінено.
+                Метадані (назва, теги, опис, EXIF) при цьому НЕ скидаються.
+            </small>
+        </div>
 
         <div class="form-row">
             <label class="form-label">Назва</label>

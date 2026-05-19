@@ -238,6 +238,62 @@ final class Upload
         return $out;
     }
 
+    /**
+     * Безпечно видалити фізичний файл, що лежить у одній з ДОЗВОЛЕНИХ директорій.
+     *
+     * Викликаємо це при видаленні / заміні фото. Якщо хтось зіпсував запис у БД
+     * (вписав туди абсолютний шлях типу '/etc/passwd' або '../config/config.php'),
+     * realpath-перевірка не дозволить нам нашкодити нічому поза дозволеними теками.
+     *
+     * @param string   $relOrAbsPath  шлях, який лежить у БД (відносний від кореня проєкту,
+     *                                напр. 'storage/originals/abc.jpg', АБО вже абсолютний)
+     * @param string[] $allowedDirs   список абсолютних дозволених директорій
+     *
+     * @return bool  true, якщо файл існував і був безпечно видалений
+     */
+    public static function safeUnlink(string $relOrAbsPath, array $allowedDirs): bool
+    {
+        if ($relOrAbsPath === '') {
+            return false;
+        }
+        // Резолвимо у абсолютний шлях. Якщо вхід відносний — додаємо корінь проєкту.
+        // Корінь визначаємо динамічно: app/Services/Upload.php → ../../ = корінь.
+        $root = dirname(__DIR__, 2);
+        $absInput = $relOrAbsPath;
+        if (!preg_match('#^([a-zA-Z]:\\\\|/)#', $absInput)) {
+            // Відносний → додаємо корінь.
+            $absInput = $root . DIRECTORY_SEPARATOR . ltrim($absInput, '/\\');
+        }
+
+        // Файл має існувати — без цього realpath() поверне false.
+        if (!is_file($absInput)) {
+            return false;
+        }
+        $real = realpath($absInput);
+        if ($real === false) {
+            return false;
+        }
+
+        // Перевіряємо, що шлях лежить у одній із дозволених директорій.
+        $allowed = false;
+        foreach ($allowedDirs as $dir) {
+            if ($dir === '') continue;
+            $realDir = realpath($dir);
+            if ($realDir === false) continue;
+            // Додаємо роздільник, щоб '/a/b' не співпадало з '/a/bcd'.
+            $realDirSep = rtrim($realDir, '/\\') . DIRECTORY_SEPARATOR;
+            if (strncmp($real, $realDirSep, strlen($realDirSep)) === 0) {
+                $allowed = true;
+                break;
+            }
+        }
+        if (!$allowed) {
+            return false;
+        }
+
+        return @unlink($real);
+    }
+
     // ---------- helpers ----------
 
     /**

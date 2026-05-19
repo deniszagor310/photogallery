@@ -235,6 +235,19 @@ final class PhotoController extends AbstractAdminController
             $this->redirect(url('/admin/photos/' . $id . '/edit'));
         }
 
+        // Опціонально: заміна файлу. Робимо ДО оновлення метаданих,
+        // щоб не зберігати модифікації, якщо файл не пройшов валідацію.
+        $newFile = null;
+        $hasNewFile = isset($_FILES['photo']['error']) && (int)$_FILES['photo']['error'] !== \UPLOAD_ERR_NO_FILE;
+        if ($hasNewFile) {
+            try {
+                $newFile = (new Upload())->handle($_FILES['photo']);
+            } catch (UploadException $e) {
+                flash_set('error', 'Не вдалося замінити файл: ' . $e->getMessage());
+                $this->redirect(url('/admin/photos/' . $id . '/edit'));
+            }
+        }
+
         // album_id: лише існуючий, інакше NULL.
         $albumValue = null;
         if ($albumId > 0 && (new Album())->find($albumId)) {
@@ -260,30 +273,66 @@ final class PhotoController extends AbstractAdminController
             $takenAt = null;
         }
 
-        $photoModel->update($id, [
-            'album_id'      => $albumValue,
-            'title'         => $title,
-            'slug'          => $slug,
-            'description'   => $description !== '' ? $description : null,
-            'camera_model'  => $this->trimOrNull($_POST['camera_model'] ?? null, 120),
-            'lens_model'    => $this->trimOrNull($_POST['lens_model'] ?? null, 120),
-            'iso'           => $iso,
-            'aperture'      => $this->trimOrNull($_POST['aperture'] ?? null, 20),
-            'shutter_speed' => $this->trimOrNull($_POST['shutter_speed'] ?? null, 20),
-            'taken_at'      => $takenAt,
-        ]);
-
-        // Теги: розбиваємо по комах, оновлюємо звʼязки.
-        $tagNames = $tagsRaw === '' ? [] : array_map('trim', explode(',', $tagsRaw));
+        // Якщо файл замінювали — оновлюємо також ВСЕ файлове.
+        // Транзакція тримається тільки навколо двох DB-операцій
+        // (photos.update + photo_tags), а власне unlink старих файлів
+        // робиться ПІСЛЯ commit, щоб не зашкодити при rollback.
+        $pdo = \App\Core\Database::pdo();
+        $pdo->beginTransaction();
         try {
+            $photoModel->update($id, [
+                'album_id'      => $albumValue,
+                'title'         => $title,
+                'slug'          => $slug,
+                'description'   => $description !== '' ? $description : null,
+                'camera_model'  => $this->trimOrNull($_POST['camera_model'] ?? null, 120),
+                'lens_model'    => $this->trimOrNull($_POST['lens_model'] ?? null, 120),
+                'iso'           => $iso,
+                'aperture'      => $this->trimOrNull($_POST['aperture'] ?? null, 20),
+                'shutter_speed' => $this->trimOrNull($_POST['shutter_speed'] ?? null, 20),
+                'taken_at'      => $takenAt,
+            ]);
+
+            if ($newFile !== null) {
+                $photoModel->replaceFileFields($id, [
+                    'original_path'     => $newFile['original_path'],
+                    'large_path'        => $newFile['large_path'],
+                    'thumb_path'        => $newFile['thumb_path'],
+                    'original_filename' => $newFile['original_filename'],
+                    'stored_filename'   => $newFile['stored_filename'],
+                    'original_size'     => $newFile['size'],
+                    'mime_type'         => $newFile['mime_type'],
+                    'width'             => $newFile['width'],
+                    'height'            => $newFile['height'],
+                ]);
+            }
+
+            // Теги: у тій же транзакції, щоб не лишилось «частково оновленого» стану.
+            $tagNames = $tagsRaw === '' ? [] : array_map('trim', explode(',', $tagsRaw));
             (new Tag())->syncForPhoto($id, $tagNames);
-            (new Tag())->deleteUnused(); // прибираємо «мертві» теги
+
+            $pdo->commit();
         } catch (\Throwable $e) {
-            flash_set('error', 'Помилка під час оновлення тегів: ' . $e->getMessage());
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            // Якщо ми вже встигли покласти НОВИЙ файл на диск, але БД не оновилась —
+            // прибираємо новий файл, щоб не лишити осиротілих файлів.
+            if ($newFile !== null) {
+                (new Upload())->rollback($newFile);
+            }
+            flash_set('error', 'Помилка збереження: ' . $e->getMessage());
             $this->redirect(url('/admin/photos/' . $id . '/edit'));
         }
 
-        flash_set('success', 'Фото збережено.');
+        // Усе збереглось → тільки тепер прибираємо старі файли (якщо була заміна)
+        // і чистимо мертві теги.
+        if ($newFile !== null) {
+            $this->deletePhotoFiles($existing);
+        }
+        (new Tag())->deleteUnused();
+
+        flash_set('success', $newFile !== null ? 'Файл і метадані оновлено.' : 'Фото збережено.');
         $this->redirect(url('/admin/photos/' . $id . '/edit'));
     }
 
@@ -292,18 +341,55 @@ final class PhotoController extends AbstractAdminController
         $this->requireCsrf();
         $id = (int)$id;
 
-        $photo = (new Photo())->find($id);
+        $photoModel = new Photo();
+        $photo = $photoModel->find($id);
         if (!$photo) {
             $this->abort(404, 'Фото не знайдено');
         }
 
-        // У Етапі 10 додамо ще видалення фізичних файлів (originals/large/thumb).
-        // Поки що чистимо лише БД-запис; ON DELETE CASCADE подбає про photo_tags.
-        (new Photo())->delete($id);
+        // Прибираємо запис у БД в транзакції (ON DELETE CASCADE подбає про photo_tags).
+        // Файли видаляємо ПІСЛЯ commit — щоб при rollback бази файли не були вже
+        // прибрані «наперед». Саме видалення — через Upload::safeUnlink(),
+        // який перевіряє через realpath, що шлях лежить у дозволених теках.
+        $pdo = \App\Core\Database::pdo();
+        try {
+            $pdo->beginTransaction();
+            $photoModel->delete($id);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            flash_set('error', 'Помилка видалення: ' . $e->getMessage());
+            $this->redirect(url('/admin/photos'));
+        }
+
+        $this->deletePhotoFiles($photo);
         (new Tag())->deleteUnused();
 
         flash_set('success', "Фото «{$photo['title']}» видалено.");
         $this->redirect(url('/admin/photos'));
+    }
+
+    /**
+     * Безпечно прибрати 3 фізичних файли фото (з реальних локацій).
+     * Повертає кількість фактично видалених файлів.
+     */
+    private function deletePhotoFiles(array $photo): int
+    {
+        $allowed = [
+            (string)config('paths.originals'),
+            (string)config('paths.large'),
+            (string)config('paths.thumbs'),
+        ];
+        $deleted = 0;
+        foreach (['original_path', 'large_path', 'thumb_path'] as $k) {
+            $p = (string)($photo[$k] ?? '');
+            if ($p !== '' && Upload::safeUnlink($p, $allowed)) {
+                $deleted++;
+            }
+        }
+        return $deleted;
     }
 
     private function trimOrNull(mixed $value, int $maxLen): ?string
