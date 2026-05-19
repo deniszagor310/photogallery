@@ -16,13 +16,12 @@ namespace App\Services;
  *  7) getimagesize() підтверджує, що файл — реальне зображення з відповідним MIME.
  *
  * Що робимо після перевірок:
- *  - Генеруємо випадкове ім'я (bin2hex(random_bytes(16))) — користувачеве
+ *  - Генеруємо випадкове ім'я (bin2hex(random_bytes(16))) — користувацьке
  *    оригінальне ім'я НЕ потрапляє на диск.
  *  - move_uploaded_file() у storage/originals/.
- *  - Тимчасово (до Етапу 9 з ImageService) копіюємо оригінал
- *    у public/uploads/large/ і public/uploads/thumbs/, щоб публічна
- *    сторінка не була порожньою. Етап 9 переписуватиме ці копії
- *    на справжні ресайзи через GD.
+ *  - Через ImageService генеруємо оптимізовані копії у
+ *    public/uploads/large/ і public/uploads/thumbs/ (формат зберігається:
+ *    JPEG→JPEG, PNG→PNG, WebP→WebP).
  *
  * Що НЕ робить цей сервіс:
  *  - Не пише в БД (це робить контролер у транзакції).
@@ -30,6 +29,13 @@ namespace App\Services;
  */
 final class Upload
 {
+    private ?ImageService $images;
+
+    public function __construct(?ImageService $images = null)
+    {
+        $this->images = $images ?? new ImageService();
+    }
+
     /**
      * Обробити один завантажений файл і повернути готовий до INSERT масив.
      *
@@ -145,12 +151,14 @@ final class Upload
             throw new UploadException('Не вдалося зберегти файл на диск.');
         }
 
-        // Поки що (до Етапу 9 з реальним resize) — копіюємо байт-у-байт.
-        // Це робить публічну сторінку фото робочою одразу після Етапу 8.
-        // Етап 9 перепише ці копії на оптимізовані WebP/JPEG.
-        if (!@copy($absOriginal, $absLarge) || !@copy($absOriginal, $absThumb)) {
-            // Якщо preview-копії не вдались — повертаємо стан назад, щоб
-            // у БД не зберігся «частковий» запис.
+        // Генеруємо оптимізовані копії через ImageService (GD).
+        // Тип файлу зберігаємо як у оригіналі.
+        try {
+            $this->images->makeLarge($absOriginal, $absLarge, $mime);
+            $this->images->makeThumb($absOriginal, $absThumb, $mime);
+        } catch (\Throwable $e) {
+            // Якщо resize не вдався — прибираємо те, що встигли створити,
+            // і просимо контролер не писати у БД.
             @unlink($absOriginal);
             @unlink($absLarge);
             @unlink($absThumb);
