@@ -10,6 +10,7 @@ $items = $result['items'];
 <header class="admin-page-header">
     <h1>Фото</h1>
     <span class="admin-muted">Усього: <?= (int)$result['total'] ?></span>
+    <a class="btn btn-primary btn-sm" href="<?= e(url('/admin/photos/new')) ?>">+ Завантажити</a>
 </header>
 
 <form class="admin-filter" method="get" action="<?= e(url('/admin/photos')) ?>">
@@ -26,7 +27,10 @@ $items = $result['items'];
 </form>
 
 <?php if (!$items): ?>
-    <p class="admin-muted">Нічого не знайдено. Аплоад фото зʼявиться в Етапі 8.</p>
+    <p class="admin-muted">
+        Нічого не знайдено.
+        <a class="admin-link" href="<?= e(url('/admin/photos/new')) ?>">Завантажити перше фото →</a>
+    </p>
 <?php else: ?>
 <table class="admin-table">
     <thead>

@@ -5,16 +5,18 @@ use App\Models\Album;
 use App\Models\Photo;
 use App\Models\Tag;
 use App\Services\Slug;
+use App\Services\Upload;
+use App\Services\UploadException;
 
 /**
  * app/Controllers/Admin/PhotoController.php
  *
  *  GET  /admin/photos              — список (пагінований).
+ *  GET  /admin/photos/new          — форма аплоаду (Етап 8).
+ *  POST /admin/photos              — аплоад одного або кількох фото.
  *  GET  /admin/photos/{id}/edit    — форма редагування метаданих.
  *  POST /admin/photos/{id}         — оновити метадані + теги.
  *  POST /admin/photos/{id}/delete  — видалити фото (Етап 10 розширить — видаляти і файли).
- *
- * Аплоад нових фото — Етап 8. Тут лише робота з уже існуючими.
  */
 final class PhotoController extends AbstractAdminController
 {
@@ -36,6 +38,156 @@ final class PhotoController extends AbstractAdminController
             'q'         => $q,
             'albumId'   => $albumId,
         ]);
+    }
+
+    /**
+     * GET /admin/photos/new — форма аплоаду.
+     */
+    public function create(): void
+    {
+        $albums = (new Album())->allWithCounts();
+
+        $defaultAlbumId = isset($_GET['album']) ? (int)$_GET['album'] : 0;
+        if ($defaultAlbumId > 0 && !(new Album())->find($defaultAlbumId)) {
+            $defaultAlbumId = 0;
+        }
+
+        $this->renderAdmin('admin/photos/new', [
+            'title'         => 'Завантажити фото',
+            'activeNav'     => 'photos',
+            'albums'        => $albums,
+            'defaultAlbum'  => $defaultAlbumId,
+            'maxSize'       => (int)config('uploads.max_size', 25 * 1024 * 1024),
+            'allowedExt'    => (array)config('uploads.allowed_ext', ['jpg', 'jpeg', 'png', 'webp']),
+        ]);
+    }
+
+    /**
+     * POST /admin/photos — обробка multipart-форми з одним або кількома файлами.
+     *
+     * Стратегія:
+     *   - Усі файли обробляємо у циклі.
+     *   - Для КОЖНОГО файлу — окрема BD-транзакція (Upload → INSERT photos → INSERT photo_tags).
+     *   - Якщо один файл фейлиться — інші все одно зберігаються, користувач бачить
+     *     зведення «N успішно, M помилок».
+     *   - При помилці у БД ROLLBACK + видаляємо фізичні файли (Upload::rollback()).
+     */
+    public function store(): void
+    {
+        $this->requireCsrf();
+
+        $files = $_FILES['photos'] ?? null;
+        if (!is_array($files) || empty($files['name'])) {
+            flash_set('error', 'Не вибрано жодного файлу.');
+            $this->redirect(url('/admin/photos/new'));
+        }
+
+        // Спільні поля з форми (одні для всієї пачки).
+        $albumId = (int)($_POST['album_id'] ?? 0);
+        $albumValue = null;
+        if ($albumId > 0 && (new Album())->find($albumId)) {
+            $albumValue = $albumId;
+        }
+
+        $sharedDescription = trim((string)($_POST['description'] ?? ''));
+        if (mb_strlen($sharedDescription) > 4000) {
+            $sharedDescription = mb_substr($sharedDescription, 0, 4000);
+        }
+        $sharedTagsRaw = trim((string)($_POST['tags'] ?? ''));
+        $sharedTags = $sharedTagsRaw === ''
+            ? []
+            : array_map('trim', explode(',', $sharedTagsRaw));
+
+        $upload     = new Upload();
+        $photoModel = new Photo();
+        $tagModel   = new Tag();
+        $pdo        = \App\Core\Database::pdo();
+
+        $okCount = 0;
+        $errors  = [];
+
+        $normalized = Upload::normalizeMultiple($files);
+        if (!$normalized) {
+            flash_set('error', 'Не вибрано жодного файлу.');
+            $this->redirect(url('/admin/photos/new'));
+        }
+
+        foreach ($normalized as $file) {
+            $saved = null;
+            try {
+                // 1) Валідація + збереження файлу на диск.
+                $saved = $upload->handle($file);
+
+                // 2) Заголовок з оригінального імені (без розширення).
+                $title = pathinfo($saved['original_filename'], PATHINFO_FILENAME);
+                $title = trim((string)$title);
+                if ($title === '') {
+                    $title = 'Фото';
+                }
+                if (mb_strlen($title) > 200) {
+                    $title = mb_substr($title, 0, 200);
+                }
+
+                // 3) Унікальний slug.
+                $slug = Slug::uniqueFor(
+                    $title,
+                    static fn(string $s): bool => $photoModel->slugExists($s),
+                    220
+                );
+
+                // 4) Транзакція БД.
+                $pdo->beginTransaction();
+                $photoId = $photoModel->create([
+                    'album_id'          => $albumValue,
+                    'title'             => $title,
+                    'slug'              => $slug,
+                    'description'       => $sharedDescription !== '' ? $sharedDescription : null,
+                    'original_path'     => $saved['original_path'],
+                    'large_path'        => $saved['large_path'],
+                    'thumb_path'        => $saved['thumb_path'],
+                    'original_filename' => $saved['original_filename'],
+                    'stored_filename'   => $saved['stored_filename'],
+                    'original_size'     => $saved['size'],
+                    'mime_type'         => $saved['mime_type'],
+                    'width'             => $saved['width'],
+                    'height'            => $saved['height'],
+                ]);
+
+                if ($sharedTags) {
+                    $tagModel->syncForPhoto($photoId, $sharedTags);
+                }
+
+                $pdo->commit();
+                $okCount++;
+            } catch (UploadException $e) {
+                // Файл не зберігся — БД ще навіть не чіпали.
+                $errors[] = ($file['name'] ?? '(файл)') . ': ' . $e->getMessage();
+            } catch (\Throwable $e) {
+                // БД-помилка вже після того, як файл ліг на диск → відкочуємо все.
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                if ($saved !== null) {
+                    $upload->rollback($saved);
+                }
+                $errors[] = ($file['name'] ?? '(файл)') . ': помилка збереження.';
+            }
+        }
+
+        // Підсумок.
+        if ($okCount > 0 && empty($errors)) {
+            flash_set('success', "Завантажено: {$okCount}.");
+            $this->redirect(url('/admin/photos'));
+        }
+        if ($okCount > 0 && !empty($errors)) {
+            flash_set(
+                'success',
+                "Завантажено: {$okCount}. Помилки: " . implode('; ', $errors)
+            );
+            $this->redirect(url('/admin/photos'));
+        }
+        flash_set('error', 'Жодного фото не завантажено. ' . implode('; ', $errors));
+        $this->redirect(url('/admin/photos/new'));
     }
 
     public function edit(string $id): void

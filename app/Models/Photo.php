@@ -249,6 +249,62 @@ final class Photo extends Model
     }
 
     /**
+     * Створити новий запис фото. Викликається після того, як Upload-сервіс
+     * уже зберіг фізичні файли на диск (storage/originals, public/uploads/...).
+     *
+     * @param array{
+     *   album_id:?int, title:string, slug:string, description:?string,
+     *   original_path:string, large_path:string, thumb_path:string,
+     *   original_filename:string, stored_filename:string,
+     *   original_size:int, mime_type:string,
+     *   width:?int, height:?int,
+     *   camera_model:?string, lens_model:?string,
+     *   iso:?int, aperture:?string, shutter_speed:?string, taken_at:?string
+     * } $data
+     *
+     * @return int id новоствореного фото
+     */
+    public function create(array $data): int
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO photos
+                (album_id, title, slug, description,
+                 original_path, large_path, thumb_path,
+                 original_filename, stored_filename,
+                 original_size, mime_type, width, height,
+                 camera_model, lens_model, iso, aperture, shutter_speed, taken_at)
+             VALUES
+                (:album_id, :title, :slug, :description,
+                 :original_path, :large_path, :thumb_path,
+                 :original_filename, :stored_filename,
+                 :original_size, :mime_type, :width, :height,
+                 :camera_model, :lens_model, :iso, :aperture, :shutter_speed, :taken_at)'
+        );
+        $stmt->execute([
+            ':album_id'          => $data['album_id'] ?? null,
+            ':title'             => $data['title'],
+            ':slug'              => $data['slug'],
+            ':description'       => $data['description'] ?? null,
+            ':original_path'     => $data['original_path'],
+            ':large_path'        => $data['large_path'],
+            ':thumb_path'        => $data['thumb_path'],
+            ':original_filename' => $data['original_filename'],
+            ':stored_filename'   => $data['stored_filename'],
+            ':original_size'     => (int)$data['original_size'],
+            ':mime_type'         => $data['mime_type'],
+            ':width'             => $data['width'] ?? null,
+            ':height'            => $data['height'] ?? null,
+            ':camera_model'      => $data['camera_model'] ?? null,
+            ':lens_model'        => $data['lens_model'] ?? null,
+            ':iso'               => $data['iso'] ?? null,
+            ':aperture'          => $data['aperture'] ?? null,
+            ':shutter_speed'     => $data['shutter_speed'] ?? null,
+            ':taken_at'          => $data['taken_at'] ?? null,
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
      * Найновіші N — для адмін-дашборду.
      *
      * @return array<int, array<string, mixed>>

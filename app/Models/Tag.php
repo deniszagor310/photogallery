@@ -88,7 +88,14 @@ final class Tag extends Model
             }
         }
 
-        $this->pdo->beginTransaction();
+        // Якщо викликач уже відкрив транзакцію (напр., під час аплоаду
+        // в PhotoController::store), не починаємо нову — PDO не підтримує
+        // вкладені транзакції. У такому разі викликач сам відповідає за
+        // commit/rollback навколо нашого виклику.
+        $ownTransaction = !$this->pdo->inTransaction();
+        if ($ownTransaction) {
+            $this->pdo->beginTransaction();
+        }
         try {
             $del = $this->pdo->prepare('DELETE FROM photo_tags WHERE photo_id = ?');
             $del->execute([$photoId]);
@@ -101,9 +108,13 @@ final class Tag extends Model
                 }
             }
 
-            $this->pdo->commit();
+            if ($ownTransaction) {
+                $this->pdo->commit();
+            }
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
+            if ($ownTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             throw $e;
         }
     }

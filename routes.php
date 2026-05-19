@@ -45,8 +45,10 @@ return function (Router $router): void {
     $router->post('/admin/albums/{id}',           [AdminAlbumController::class,     'update']);
     $router->post('/admin/albums/{id}/delete',    [AdminAlbumController::class,     'destroy']);
 
-    // Фото (без аплоаду — це Етап 8)
+    // Фото
     $router->get('/admin/photos',                 [AdminPhotoController::class,     'index']);
+    $router->get('/admin/photos/new',             [AdminPhotoController::class,     'create']);
+    $router->post('/admin/photos',                [AdminPhotoController::class,     'store']);
     $router->get('/admin/photos/{id}/edit',       [AdminPhotoController::class,     'edit']);
     $router->post('/admin/photos/{id}',           [AdminPhotoController::class,     'update']);
     $router->post('/admin/photos/{id}/delete',    [AdminPhotoController::class,     'destroy']);
